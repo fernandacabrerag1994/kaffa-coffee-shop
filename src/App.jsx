@@ -17,6 +17,7 @@ const PRODUCTOS = [
 
 function App() {
   const [carrito, setCarrito] = useState([])
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Todas')
 
   const agregarAlCarrito = (producto) => {
     setCarrito([...carrito, producto])
@@ -24,15 +25,44 @@ function App() {
 
   const total = carrito.reduce((sum, item) => sum + item.precio, 0)
 
+  // Filtrado dinámico de productos
+  const productosFiltrados = categoriaSeleccionada === 'Todas'
+    ? PRODUCTOS
+    : PRODUCTOS.filter(p => p.categoria === categoriaSeleccionada)
+
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>☕ Kaffa Coffee Shop</h1>
 
       <h2>Catálogo de Productos</h2>
+
+      {/* Botones de Filtro por Categoria */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        {['Todas', 'Café', 'Bebidas', 'Repostería'].map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setCategoriaSeleccionada(cat)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '20px',
+              border: '1px solid #4a2c20',
+              backgroundColor: categoriaSeleccionada === cat ? '#4a2c20' : '#fff',
+              color: categoriaSeleccionada === cat ? '#fff' : '#4a2c20',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Listado de Productos */}
       <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-        {PRODUCTOS.map((prod) => (
+        {productosFiltrados.map((prod) => (
           <div key={prod.id} style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '8px', width: '180px' }}>
             <h3>{prod.nombre}</h3>
+            <p><strong>Categoría:</strong> {prod.categoria}</p>
             <p>${prod.precio} MXN</p>
             <button onClick={() => agregarAlCarrito(prod)}>Agregar al Carrito</button>
           </div>
