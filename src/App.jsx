@@ -1,101 +1,76 @@
 import { useState, useEffect } from 'react'
 import './App.css'
+const express = require('express');
+const mysql = require('mysql2');
+const cors = require('cors');
 
-function App() {
-  const [productos, setProductos] = useState([])
-  const [carrito, setCarrito] = useState([])
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Todas')
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-  // Obtener los productos desde la base de datos de MySQL
-  useEffect(() => {
-    fetch('http://localhost:5000/api/productos')
-      .then((res) => res.json())
-      .then((data) => setProductos(data))
-      .catch((err) => console.error('Error al conectar con la API:', err))
-  }, [])
+// Configuración del Pool de conexiones para MySQL (Railway / Local)
+const db = mysql.createPool({
+  host: process.env.MYSQLHOST || 'localhost',
+  user: process.env.MYSQLUSER || 'root',
+  password: process.env.MYSQLPASSWORD || '123456789',
+  database: process.env.MYSQLDATABASE || 'railway',
+  port: process.env.MYSQLPORT || 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
 
-  const agregarAlCarrito = (producto) => {
-    setCarrito([...carrito, producto])
-  }
+// 1. Ruta para obtener todos los productos
+app.get('/api/productos', (req, res) => {
+  const sql = `
+    SELECT p.id, p.nombre, p.precio_chico, p.precio_mediano, p.precio_grande, p.precio, c.nombre AS categoria
+    FROM productos p
+    LEFT JOIN categorias c ON p.categoria_id = c.id
+  `;
 
-  const total = carrito.reduce((sum, item) => sum + Number(item.precio), 0)
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(results);
+  });
+});
 
-  // Filtrado dinámico de productos
-  const productosFiltrados = categoriaSeleccionada === 'Todas'
-    ? productos
-    : productos.filter((p) => p.categoria === categoriaSeleccionada)
+// 2. NUEVA RUTA: Registrar una nueva compra del carrito
+app.post('/api/pedidos', (req, res) => {
+  const { cliente_nombre, total, carrito } = req.body;
 
-  return (
-    <div className="container" style={{ padding: '20px' }}>
-      <h1>☕ Kaffa Coffee Shop</h1>
-      <h2>Catálogo de Productos</h2>
+  // Guardar la orden principal
+  const queryPedido = 'INSERT INTO pedidos (cliente_nombre, total) VALUES (?, ?)';
 
-      {/* Botones de Filtro */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        {['Todas', 'Café', 'Bebidas', 'Repostería'].map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategoriaSeleccionada(cat)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '20px',
-              border: 'none',
-              backgroundColor: categoriaSeleccionada === cat ? '#5a3825' : '#f0e6df',
-              color: categoriaSeleccionada === cat ? '#fff' : '#000',
-              cursor: 'pointer'
-            }}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
+  db.query(queryPedido, [cliente_nombre || 'Cliente Kaffa', total], (err, resultadoPedido) => {
+    if (err) {
+      return res.status(500).json({ error: 'Error al registrar el pedido: ' + err.message });
+    }
 
-      {/* Grid de Productos cargados desde MySQL */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
-        {productosFiltrados.map((prod) => (
-          <div
-            key={prod.id}
-            style={{
-              border: '1px solid #e0e0e0',
-              borderRadius: '12px',
-              padding: '16px',
-              textAlign: 'center',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-            }}
-          >
-            <h3>{prod.nombre}</h3>
-            <p><strong>Categoría:</strong> {prod.categoria}</p>
-            <p style={{ fontWeight: 'bold', color: '#2e7d32' }}>${prod.precio} MXN</p>
-            <button
-              onClick={() => agregarAlCarrito(prod)}
-              style={{ padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
-            >
-              Agregar al Carrito
-            </button>
-          </div>
-        ))}
-      </div>
+    const pedidoId = resultadoPedido.insertId;
 
-      {/* Carrito de Compras */}
-      <div style={{ marginTop: '40px', borderTop: '2px solid #ccc', paddingTop: '20px' }}>
-        <h2>🛒 Carrito ({carrito.length})</h2>
-        {carrito.length === 0 ? (
-          <p>El carrito está vacío.</p>
-        ) : (
-          <div>
-            <ul>
-              {carrito.map((item, index) => (
-                <li key={index}>
-                  {item.nombre} - ${item.precio} MXN
-                </li>
-              ))}
-            </ul>
-            <h3>Total: ${total} MXN</h3>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+    // Guardar los productos asociados en detalle_pedidos
+    const detalleQuery = 'INSERT INTO detalle_pedidos (pedido_id, producto_id, cantidad, precio_unitario) VALUES ?';
 
-export default App
+    const valoresDetalle = carrito.map(item => [
+      pedidoId,
+      item.id,
+      item.cantidad,
+      item.precio
+    ]);
+
+    db.query(detalleQuery, [valoresDetalle], (errDetalle) => {
+      if (errDetalle) {
+        return res.status(500).json({ error: 'Error al guardar los productos del carrito: ' + errDetalle.message });
+      }
+
+      res.json({ mensaje: '¡Pedido registrado con éxito!', pedidoId: pedidoId });
+    });
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
+});
