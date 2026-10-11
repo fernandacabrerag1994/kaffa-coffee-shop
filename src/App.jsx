@@ -39,8 +39,7 @@ export default function App() {
   };
 
   // Calcular el total del carrito
-  const totalCarrito = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-
+  const totalCarrito = carrito.reduce((sum, item) => sum + (Number(item.precio) * item.cantidad), 0);
   // 2. Función para Finalizar Compra y enviarla al Backend de Railway
   const finalizarCompra = () => {
     if (carrito.length === 0) {
