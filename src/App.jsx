@@ -64,6 +64,27 @@ export default function App() {
       },
       body: JSON.stringify(datosCompra)
     })
+      .then(res => {
+        if (!res.ok) throw new Error("Error en la respuesta del servidor");
+        return res.json();
+      })
+      .then(data => {
+        alert("¡Compra realizada con éxito! Gracias por tu pedido en Kaffa.");
+        setCarrito([]); // Limpiar carrito
+      })
+      .catch(err => {
+        console.error("Error al finalizar compra:", err);
+        alert("No se pudo conectar con el servidor.");
+      });
+  };
+
+    fetch('https://kaffa-backend-production.up.railway.app/api/pedidos', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(datosCompra)
+    })
       .then(res => res.json())
       .then(data => {
         if (data.pedidoId) {
@@ -165,4 +186,3 @@ export default function App() {
       )}
     </div>
   );
-}
